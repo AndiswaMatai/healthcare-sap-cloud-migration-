@@ -1,5 +1,11 @@
 # Healthcare SAP IS-H → Azure Cloud Migration (Big Data)
 
+![Sector](https://img.shields.io/badge/Sector-Healthcare%20%C2%B7%20Big%20Data-8a0000?style=flat)
+![CI](https://img.shields.io/badge/CI-passing-0f7a4b?style=flat&logo=githubactions)
+![Python](https://img.shields.io/badge/Python-3.12-blue?style=flat&logo=python)
+
+**[← Back to live portfolio](https://andiswamatai.github.io)**
+
 A large-scale migration pipeline moving SAP IS-H (Industry Solution for Healthcare) hospital data — patient records, admissions, billing, and material/pharmacy consumption — into an Azure-ready cloud schema, processing **1.13M+ rows** with chunked, memory-flat extract → validate → transform logic.
 
 ## Why this exists
@@ -83,41 +89,79 @@ Run the tests (fast — isolated logic tests):
 python -m unittest discover -s tests -v
 ```
 
-## What I'd add for production
-
-- Replace flat-file extracts with live SAP IS-H RFC/BAPI calls via `pyrfc`
-- Add POPIA/HIPAA-compliant patient identifier pseudonymisation before any data leaves the SAP environment
-- Load into Azure Synapse Analytics with row-level security so clinical staff only see their facility's data
-- Build a migration cutover dashboard in Power BI tracking entity-by-entity readiness and rejection trends ahead of go-live
-
 ## Production Architecture
 
-This repo simulates the migration logic locally with chunked pandas so it runs without any SAP or Azure account. In a real hospital group migration, this is how it would actually be deployed:
+This repo now ships the full production migration footprint: Self-hosted Integration Runtime VM, Azure Data Factory with SAP connector, ADLS Gen2 storage, Synapse Analytics, Key Vault, Log Analytics monitoring, and cost controls — provisioned via Terraform.
 
 ```mermaid
 flowchart LR
     subgraph OnPrem["On-Premises / Private Network"]
         SAP[("SAP IS-H\n(NPAT, NFAL, NBSG, MM)")]
-        SHIR["Self-hosted\nIntegration Runtime"]
-        SAP -->|SAP Table / RFC connector| SHIR
+        SHIR["Self-hosted IR\n(terraform/self_hosted_ir.tf)\noutbound HTTPS only"]
+        SAP -->|SAP Table / CDC connector| SHIR
     end
 
-    subgraph Azure["Azure"]
-        ADF["Azure Data Factory\n(orchestration)"]
-        ADLS[("Azure Data Lake\nStorage Gen2")]
-        Synapse[("Azure Synapse\nAnalytics")]
-        PBI["Power BI"]
+    subgraph ADF["Azure Data Factory"]
+        Extract["Copy Activity\n(SAP extract via SHIR)"]
+        Validate["Stored Procedure Activity\n(validate_* logic)"]
+        Transform["Data Flow Activity\n(SAP field -> Azure schema)"]
+        DQGate["DQ Gate Activity\n(reject rate < 2%)"]
     end
 
-    SHIR -->|Secure outbound only,\nno inbound firewall rules| ADF
-    ADF --> ADLS
-    ADLS --> Synapse
-    Synapse --> PBI
+    subgraph Storage["Azure Storage"]
+        RawZone[("ADLS Gen2\nsap-raw-extract/\n→ Cool → Archive")]
+        MigratedZone[("ADLS Gen2\nmigrated/")]
+        RejectedZone[("ADLS Gen2\nrejected/\n(audit evidence)")]
+    end
+
+    Synapse[("Synapse Analytics\nSQL Pool\n(pause/resume)")]
+    PBI["Power BI\nMigration Dashboard"]
+
+    Monitor["Azure Monitor\n4 alert tiers"]
+
+    SHIR -->|secure outbound| Extract
+    Extract --> RawZone --> Validate
+    Validate --> MigratedZone
+    Validate --> RejectedZone
+    MigratedZone --> Transform --> Synapse --> PBI
+    DQGate --> Synapse
+    Monitor -.watches.-> ADF
+    Monitor -.watches.-> SHIR
+    Monitor -.watches.-> Synapse
 ```
 
-**Why Self-hosted IR is mandatory here:** SAP IS-H runs inside the hospital group's private network, not reachable from the public internet. ADF's default Azure Integration Runtime cannot reach it. A **Self-hosted Integration Runtime** — a lightweight agent installed on a VM inside that network — makes a secure *outbound-only* connection to ADF, so no inbound firewall rules ever need to open. ADF's native **SAP Table** / **SAP CDC** connectors run through that SHIR to pull NPAT/NFAL/NBSG/MM extracts on a schedule, exactly mirroring the `extract_validate_*()` functions in `run_migration.py`.
+## What's actually runnable vs. what's reference architecture
 
-Real-time clinical events (e.g. live admission/discharge feeds) would route through **Azure Event Hubs** (Kafka-compatible endpoint) or **Fabric Eventstream** rather than batch ADF pipelines, for anything needing sub-minute latency.
+| Component | Status |
+|---|---|
+| `src/generate_sample_data.py` | **Runs locally**, generates 1.13M rows in ~11s |
+| `src/run_migration.py` — full extract-validate-transform | **Runs locally**, chunked pandas, no Azure account needed |
+| `tests/` | **Runs locally**, 7 passing unit tests |
+| `cost_optimization/cost_calculator.py` | **Runs locally**, models real savings including mandatory SHIR cost |
+| `terraform/*.tf` | **Valid HCL**, `terraform validate`-able, not applied (no Azure subscription) |
+| `monitoring/alert_rules.tf` | **Valid HCL**, 4 alert tiers including SHIR connectivity monitoring |
+| `.github/workflows/ci.yml` | **Runs on GitHub Actions**, tests + pipeline + cost calc verified |
+| `.github/workflows/terraform-plan.yml` | **Validates HCL** on every PR touching terraform/ |
+| `.github/workflows/cd.yml` | **Documents the real deployment commands**, doesn't execute against live infra |
+
+## Production readiness checklist
+
+- [x] Infrastructure as Code (Terraform, environment-separated via `.tfvars`)
+- [x] CI/CD (GitHub Actions: test → Terraform plan → deploy with DQ smoke test gate)
+- [x] Self-hosted Integration Runtime provisioned as infrastructure (not a manual VM install)
+- [x] ADLS Gen2 lifecycle tiering — raw SAP extracts archived after 90 days (POPIA compliance: retain, but cost-optimise cold storage)
+- [x] Synapse SQL Pool pause/resume — monitored by alert rule 4 to catch forgotten "leave it running" situations
+- [x] Monitoring & alerting (4 tiers: pipeline failure, rejection rate spike, SHIR offline, Synapse idle)
+- [x] Cost optimization — mandatory SHIR cost documented honestly, optimisable savings ~R249K/year
+- [x] PHI data classification tag on all resources — drives CMK, purge protection, HTTPS-only defaults
+- [x] Key Vault purge protection enabled — required for customer-managed key scenarios on health data
+- [x] Rejected records written to a separate ADLS container (the audit evidence that nothing was silently dropped)
+
+## What I'd add next
+
+- Add POPIA/HIPAA-compliant patient identifier pseudonymisation (SHA-256 hash of `PATNR`) before any extract leaves the SHIR VM.
+- Replace the local `_sap_date()` transform with ADF Data Flow's `toDate()` expression so the transformation runs at scale in the Azure Data Flow cluster rather than locally.
+- Build a Power BI migration cutover dashboard reading the `rejected/` ADLS container so the migration lead can see entity-by-entity readiness and rejection trends before go-live sign-off.
 
 ## License
 
