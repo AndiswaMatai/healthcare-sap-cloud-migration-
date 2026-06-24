@@ -1,4 +1,4 @@
-# Healthcare SAP IS-H → Azure Cloud Migration (Big Data)
+# 🏥 Enterprise SAP IS-H → Azure Lakehouse Migration Platform
 
 ![Sector](https://img.shields.io/badge/Sector-Healthcare%20%C2%B7%20Big%20Data-8a0000?style=flat)
 ![CI](https://img.shields.io/badge/CI-passing-0f7a4b?style=flat&logo=githubactions)
@@ -6,7 +6,48 @@
 
 **[← Back to live portfolio](https://andiswamatai.github.io)**
 
-A large-scale migration pipeline moving SAP IS-H (Industry Solution for Healthcare) hospital data — patient records, admissions, billing, and material/pharmacy consumption — into an Azure-ready cloud schema, processing **1.13M+ rows** with chunked, memory-flat extract → validate → transform logic.
+---
+
+## 🚀 Overview
+
+A large-scale enterprise data migration platform that modernises SAP IS-H (Healthcare Industry Solution) systems by migrating hospital operational data into an Azure-ready lakehouse schema.
+
+The platform processes over **1.13 million healthcare records** covering patients, admissions, billing, and pharmacy consumption using a chunked extract → validate → transform architecture designed for memory-efficient large-scale processing.
+
+This system simulates how healthcare organisations safely migrate mission-critical clinical and financial data into cloud environments without compromising data integrity or regulatory compliance.
+
+---
+
+## 🧠 Business Context
+
+Healthcare systems running SAP IS-H manage some of the most sensitive and operationally critical datasets in the enterprise landscape, including:
+
+- Patient demographics and medical records
+- Hospital admissions and discharge events
+- Billing and insurance claims
+- Pharmacy and material consumption
+
+These systems must be migrated carefully due to:
+
+- Strict regulatory and compliance requirements (POPIA / HIPAA-style constraints)
+- High risk of financial inaccuracies from data inconsistencies
+- Dependency of downstream reporting and revenue systems on data integrity
+- Zero tolerance for data loss or corruption during migration
+  
+---
+## Solution Overview 
+
+This platform implements a controlled enterprise migration framework that ensures SAP IS-H data is safely transformed into an Azure Lakehouse schema.
+
+The system:
+
+- Extracts SAP IS-H datasets in controlled chunks
+- Validates clinical and financial business rules before migration
+- Rejects and logs invalid records with full traceability
+- Transforms SAP-specific formats into standardised cloud-ready schemas
+- Loads validated datasets into Azure-aligned structures
+
+
 
 ## Why this exists
 
@@ -35,127 +76,107 @@ Full pipeline (generate + migrate) runs in under 40 seconds.
 
 ## Architecture
 
-```
-SAP IS-H flat-file extract (1.13M rows)
-        │
-        ▼
-[Phase 1: Extract + Validate]  — chunked, 50K rows/chunk
-   • Missing facility on case record
-   • Discharge date before admission date
-   • Orphan case references in billing/materials
-   • Zero/negative billing amounts
-        │
-        ├── REJECTED ──▶ logged with rejection reason
-        │
-        ▼
-[Phase 2: Transform]
-   • SAP field codes → business names (GESCH 1/2/9 → male/female/unknown)
-   • SAP date format (YYYYMMDD) → ISO 8601
-   • Computed fields: length_of_stay_days, total_cost
-        │
-        ▼
-   az_patients / az_cases / az_billing / az_materials  (Azure-ready schema)
+🏗️ Architecture
+📡 SAP IS-H Source System
+- NPAT (Patients)
+- NFAL (Admissions / Cases)
+- NBSG (Billing)
+- MM (Materials / Pharmacy)
+
+        ↓
+
+🥉 Extract Layer
+- Chunked ingestion (50K rows per batch)
+- Memory-efficient processing
+
+        ↓
+
+🥈 Validation Layer
+- Admission date consistency checks
+- Orphan record detection
+- Billing integrity validation
+- Negative / invalid value detection
+
+        ↓
+
+🥇 Transformation Layer
+- SAP code → business-friendly mapping
+- Date standardisation (YYYYMMDD → ISO 8601)
+- Derived metrics (length of stay, total cost)
+
+        ↓
+
+📊 Azure-Ready Layer
+- az_patients
+- az_cases
+- az_billing
+- az_materials
 ```
 
 ## Sample Migration Run
 
 ```
-Entity                  Source     Valid  Rejected
------------------------------------------------------------------
-Patients (NPAT)         80,000    80,000         0
-Cases (NFAL)           220,000   219,120       880
-Billing (NBSG)         520,000   516,357     3,643
-Materials (MM)         310,000   308,765     1,235
-
-Billing migrated, total value: R904,186,673.77
-Total rejected: 5,758 (0.51%)
+| Entity | Source Rows | Migrated | Rejected |
+|--------|------------|----------|----------|
+| Patients (NPAT) | 80,000 | 80,000 | 0 |
+| Cases (NFAL) | 220,000 | 219,120 | 880 |
+| Billing (NBSG) | 520,000 | 516,357 | 3,643 |
+| Materials (MM) | 310,000 | 308,765 | 1,235 |
+| **Total** | **1,130,000** | **1,124,242** | **5,758 (0.51%)** |
 ```
 
 ## Tech stack
 
 Python, pandas with chunked processing (→ Azure Data Factory + Synapse Analytics in production), numpy for vectorised million-row data generation.
 
-## Running it
+## Data Engineering Design
 
-```bash
-pip install -r requirements.txt
-python src/generate_sample_data.py     # ~11s, generates 1.13M rows
-python src/run_migration.py            # ~25s, full extract→validate→transform
+This platform demonstrates enterprise-grade data engineering principles:
+
+- Chunked processing for large-scale datasets (memory-safe ingestion)
+- Strict data validation prior to transformation
+- Schema standardisation for cloud migration readiness
+- Rejection logging for full audit traceability
+- Separation of extract, validate, and transform layers
+
+## Business Rule Engine
+
+Key validation rules enforced during migration:
+
+- Discharge date must be after admission date
+- All cases must reference valid patients
+- Billing records must not contain negative or zero values
+- Material consumption must link to valid cases
+- Missing facility identifiers flagged as invalid
+
+## Data Governance & Audit Layer
+
+The system ensures full auditability through:
+
+- Rejected record logging with explicit failure reasons
+- Separation of valid vs invalid datasets
+- Traceable transformation logic per field
+- Migration statistics per entity type
 ```
 
-Run the tests (fast — isolated logic tests):
+## Outputs
 
-```bash
-python -m unittest discover -s tests -v
-```
+The platform generates:
 
-## Production Architecture
+- Clean Azure-ready datasets (patients, cases, billing, materials)
+- Rejected record audit logs
+- Migration summary report
+- Data quality statistics
 
-This repo now ships the full production migration footprint: Self-hosted Integration Runtime VM, Azure Data Factory with SAP connector, ADLS Gen2 storage, Synapse Analytics, Key Vault, Log Analytics monitoring, and cost controls — provisioned via Terraform.
+## Business Value
 
-```mermaid
-flowchart LR
-    subgraph OnPrem["On-Premises / Private Network"]
-        SAP[("SAP IS-H\n(NPAT, NFAL, NBSG, MM)")]
-        SHIR["Self-hosted IR\n(terraform/self_hosted_ir.tf)\noutbound HTTPS only"]
-        SAP -->|SAP Table / CDC connector| SHIR
-    end
+This system enables healthcare organisations to:
 
-    subgraph ADF["Azure Data Factory"]
-        Extract["Copy Activity\n(SAP extract via SHIR)"]
-        Validate["Stored Procedure Activity\n(validate_* logic)"]
-        Transform["Data Flow Activity\n(SAP field -> Azure schema)"]
-        DQGate["DQ Gate Activity\n(reject rate < 2%)"]
-    end
-
-    subgraph Storage["Azure Storage"]
-        RawZone[("ADLS Gen2\nsap-raw-extract/\n→ Cool → Archive")]
-        MigratedZone[("ADLS Gen2\nmigrated/")]
-        RejectedZone[("ADLS Gen2\nrejected/\n(audit evidence)")]
-    end
-
-    Synapse[("Synapse Analytics\nSQL Pool\n(pause/resume)")]
-    PBI["Power BI\nMigration Dashboard"]
-
-    Monitor["Azure Monitor\n4 alert tiers"]
-
-    SHIR -->|secure outbound| Extract
-    Extract --> RawZone --> Validate
-    Validate --> MigratedZone
-    Validate --> RejectedZone
-    MigratedZone --> Transform --> Synapse --> PBI
-    DQGate --> Synapse
-    Monitor -.watches.-> ADF
-    Monitor -.watches.-> SHIR
-    Monitor -.watches.-> Synapse
-```
-
-## What's actually runnable vs. what's reference architecture
-
-| Component | Status |
-|---|---|
-| `src/generate_sample_data.py` | **Runs locally**, generates 1.13M rows in ~11s |
-| `src/run_migration.py` — full extract-validate-transform | **Runs locally**, chunked pandas, no Azure account needed |
-| `tests/` | **Runs locally**, 7 passing unit tests |
-| `cost_optimization/cost_calculator.py` | **Runs locally**, models real savings including mandatory SHIR cost |
-| `terraform/*.tf` | **Valid HCL**, `terraform validate`-able, not applied (no Azure subscription) |
-| `monitoring/alert_rules.tf` | **Valid HCL**, 4 alert tiers including SHIR connectivity monitoring |
-| `.github/workflows/ci.yml` | **Runs on GitHub Actions**, tests + pipeline + cost calc verified |
-| `.github/workflows/terraform-plan.yml` | **Validates HCL** on every PR touching terraform/ |
-| `.github/workflows/cd.yml` | **Documents the real deployment commands**, doesn't execute against live infra |
-
-## Production readiness checklist
-
-- [x] Infrastructure as Code (Terraform, environment-separated via `.tfvars`)
-- [x] CI/CD (GitHub Actions: test → Terraform plan → deploy with DQ smoke test gate)
-- [x] Self-hosted Integration Runtime provisioned as infrastructure (not a manual VM install)
-- [x] ADLS Gen2 lifecycle tiering — raw SAP extracts archived after 90 days (POPIA compliance: retain, but cost-optimise cold storage)
-- [x] Synapse SQL Pool pause/resume — monitored by alert rule 4 to catch forgotten "leave it running" situations
-- [x] Monitoring & alerting (4 tiers: pipeline failure, rejection rate spike, SHIR offline, Synapse idle)
-- [x] Cost optimization — mandatory SHIR cost documented honestly, optimisable savings ~R249K/year
-- [x] PHI data classification tag on all resources — drives CMK, purge protection, HTTPS-only defaults
-- [x] Key Vault purge protection enabled — required for customer-managed key scenarios on health data
-- [x] Rejected records written to a separate ADLS container (the audit evidence that nothing was silently dropped)
+- Safely migrate SAP IS-H systems to cloud platforms
+- Maintain full data integrity during migration
+- Ensure regulatory compliance (POPIA / HIPAA-aligned design)
+- Reduce migration risk through structured validation
+- Provide full audit traceability of all data movements
 
 ## What I'd add next
 
