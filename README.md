@@ -138,7 +138,6 @@ The system ensures full auditability through:
 - Separation of valid vs invalid datasets
 - Traceable transformation logic per field
 - Migration statistics per entity type
-```
 
 ## Outputs
 
