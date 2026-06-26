@@ -61,18 +61,22 @@ Python · Pandas · NumPy · Azure Data Factory · Synapse Analytics · Terrafor
 
 ## 📂 Project Structure
 healthcare-sap-cloud-migration/
-├── src/            # Core Python modules (extract, validate, transform)
-├── config/         # SAP table mappings, validation rules, env variables
-├── data/           # Synthetic SAP datasets + migrated outputs
-├── validation/     # Business rule checks (admission, billing, orphan detection)
-├── transforms/     # Schema standardisation + SAP code mappings
-├── audit/          # Logs of rejected records, migration statistics
-├── reports/        # Migration summary reports + Power BI dashboards
-├── infrastructure/ # Terraform + CI/CD pipeline definitions
-├── tests/          # Unit/integration tests
-├── scripts/        # Utility scripts for orchestration
-├── Dockerfile      # Containerisation
-└── README.md       # Documentation
+├── .github/workflows/      # CI/CD: Automated testing & DAB deployment
+├── audit/                  # Rejected records & migration stats
+├── config/                 # SAP mappings, validation rules, env vars
+├── data/                   # Synthetic datasets & migration outputs
+├── infrastructure/         # Databricks Asset Bundle (DAB) & IaC
+├── reports/                # Migration summaries & Power BI assets
+├── scripts/                # Orchestration & utility scripts
+├── src/                    # Core PySpark modules
+│   ├── __init__.py
+│   ├── main.py             # Pipeline orchestrator
+│   ├── transformations/    # Silver -> Gold logic
+│   ├── utils/              # Spark helpers & logging
+│   └── validation/         # Quality rule engine
+├── tests/                  # Pytest unit & integration tests
+├── Dockerfile              # Containerisation definition
+└── README.md               # Project documentation
 
 
 ---
