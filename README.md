@@ -89,28 +89,5 @@ healthcare-sap-cloud-migration/
 ## 📜 License
 MIT — all data is synthetico
 
-graph TD
-    subgraph "CI/CD Orchestration"
-        GH[GitHub Actions] -->|Trigger| DAB[Databricks Asset Bundle]
-        DAB -->|Deploy| DB[Azure Databricks]
-    end
-
-    subgraph "Data Pipeline"
-        SAP[SAP IS-H Source] -->|Ingest| B(Bronze: Raw)
-        B -->|Validate| S(Silver: Quality Layer)
-        S -->|Transform| G(Gold: Business Ready)
-        S -->|Reject| A[Audit/Error Log]
-        G -->|Report| BI[Power BI / Dashboards]
-        A -->|Report| BI
-    end
-
-    DB --> B
-    DB --> S
-    DB --> G
-
-    style GH fill:#e1f5fe,stroke:#01579b
-    style DAB fill:#e1f5fe,stroke:#01579b
-    style SAP fill:#fce4ec,stroke:#880e4f
-    style S fill:#fff9c4,stroke:#fbc02d
-    style G fill:#e8f5e9,stroke:#2e7d32
+ 
 
