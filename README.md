@@ -60,7 +60,7 @@ Python · Pandas · NumPy · Azure Data Factory · Synapse Analytics · Terrafor
 ---
 
 ## 📂 Project Structure
-,,,
+```
 healthcare-sap-cloud-migration/
 ├── .github/workflows/      # CI/CD: Automated testing & DAB deployment
 ├── audit/                  # Rejected records & migration stats
